@@ -5,6 +5,10 @@ Route53 DNS bootstrap for:
 - `paulashbourne.com`
 - `paulashbourne.ca`
 
+Service stacks:
+
+- `services/n64` for Warpdeck 64 app hosting (`n64.paulashbourne.com`)
+
 ## What this creates
 
 - Two Route53 public hosted zones (one per domain)
@@ -40,3 +44,13 @@ dig @<ROUTE53_NS> paulashbourne.ca A +short
 2. Update registrar nameservers to Route53 for each domain.
 3. Wait for NS propagation.
 4. Re-run dig checks without `@<ROUTE53_NS>` to confirm public resolver answers.
+
+## Warpdeck 64 stack
+
+Deploy the app hosting stack from:
+
+```bash
+cd /Users/paul/git/paulashbourne/infra/services/n64
+```
+
+See `/Users/paul/git/paulashbourne/infra/services/n64/README.md` for full variables, plan/apply steps, and post-apply outputs.
