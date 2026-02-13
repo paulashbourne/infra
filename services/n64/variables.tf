@@ -62,6 +62,25 @@ variable "enable_cpu_alarm" {
   default     = true
 }
 
+variable "basic_auth_enabled" {
+  description = "Enable CloudFront edge password gate for the whole site (frontend, API, and WebSocket paths)."
+  type        = bool
+  default     = true
+}
+
+variable "basic_auth_username" {
+  description = "Deprecated legacy field from basic-auth mode. Kept for compatibility; leave empty."
+  type        = string
+  default     = ""
+}
+
+variable "basic_auth_password" {
+  description = "Password for CloudFront edge password gate. Required when basic_auth_enabled=true."
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
 variable "alarm_actions" {
   description = "SNS topic ARNs or other alarm action ARNs. Leave empty for dashboard-only alarms."
   type        = list(string)

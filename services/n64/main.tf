@@ -285,14 +285,275 @@ resource "aws_cloudfront_function" "spa_rewrite" {
   name    = "warpdeck-n64-spa-rewrite"
   runtime = "cloudfront-js-1.0"
   publish = true
-  comment = "Rewrite extensionless paths to /index.html for SPA routing"
+  comment = "Password gate + SPA rewrite for Warpdeck64"
 
   code = <<-EOT
     function handler(event) {
       var request = event.request;
-      var uri = request.uri;
+      var authEnabled = ${local.basic_auth_active ? "true" : "false"};
+      var expectedPassword = ${jsonencode(trimspace(var.basic_auth_password))};
+      var cookieName = ${jsonencode(local.basic_auth_cookie_name)};
+      var cookieToken = ${jsonencode(local.basic_auth_cookie_token)};
 
-      if (uri.endsWith('/')) {
+      function parseCookieValue(cookieHeader, name) {
+        if (!cookieHeader || !cookieHeader.value) {
+          return '';
+        }
+
+        var prefix = name + '=';
+        var pairs = cookieHeader.value.split(';');
+        for (var i = 0; i < pairs.length; i++) {
+          var cookie = pairs[i].trim();
+          if (cookie.indexOf(prefix) === 0) {
+            return cookie.substring(prefix.length);
+          }
+        }
+        return '';
+      }
+
+      function hasAuthCookie(request) {
+        if (request.cookies && request.cookies[cookieName] && request.cookies[cookieName].value) {
+          return request.cookies[cookieName].value === cookieToken;
+        }
+        return parseCookieValue(request.headers.cookie, cookieName) === cookieToken;
+      }
+
+      function isPasswordKey(key) {
+        var lowered = (key || '').toLowerCase();
+        return lowered === 'password' || lowered === 'pw' || lowered === 'pass' || lowered === 'p';
+      }
+
+      function valuesFromQueryEntry(entry) {
+        if (!entry) {
+          return [];
+        }
+
+        if (entry.multiValue && entry.multiValue.length > 0) {
+          var values = [];
+          for (var index = 0; index < entry.multiValue.length; index++) {
+            var multi = entry.multiValue[index];
+            if (multi && multi.value !== undefined) {
+              values.push(String(multi.value));
+            }
+          }
+          return values;
+        }
+
+        if (entry.value !== undefined) {
+          return [String(entry.value)];
+        }
+
+        return [];
+      }
+
+      function getPasswordFromQuery(query) {
+        if (!query) {
+          return '';
+        }
+
+        for (var key in query) {
+          if (!Object.prototype.hasOwnProperty.call(query, key) || !isPasswordKey(key)) {
+            continue;
+          }
+          var values = valuesFromQueryEntry(query[key]);
+          for (var valueIndex = 0; valueIndex < values.length; valueIndex++) {
+            if (values[valueIndex]) {
+              return values[valueIndex];
+            }
+          }
+        }
+
+        return '';
+      }
+
+      function buildQueryString(query) {
+        var parts = [];
+        for (var key in query) {
+          if (!Object.prototype.hasOwnProperty.call(query, key)) {
+            continue;
+          }
+          var entry = query[key];
+          if (entry && entry.multiValue && entry.multiValue.length > 0) {
+            for (var i = 0; i < entry.multiValue.length; i++) {
+              var multi = entry.multiValue[i];
+              if (multi && multi.value !== undefined) {
+                parts.push(encodeURIComponent(key) + '=' + encodeURIComponent(multi.value));
+              }
+            }
+            continue;
+          }
+
+          if (entry && entry.value !== undefined) {
+            parts.push(encodeURIComponent(key) + '=' + encodeURIComponent(entry.value));
+          }
+        }
+        return parts.join('&');
+      }
+
+      function copyQueryWithoutPassword(query) {
+        var copy = {};
+        if (!query) {
+          return copy;
+        }
+
+        for (var key in query) {
+          if (Object.prototype.hasOwnProperty.call(query, key)) {
+            if (isPasswordKey(key)) {
+              continue;
+            }
+            copy[key] = query[key];
+          }
+        }
+        return copy;
+      }
+
+      function locationFor(request, query) {
+        var built = buildQueryString(query);
+        return (request.uri || '/') + (built.length > 0 ? '?' + built : '');
+      }
+
+      function escapeHtml(value) {
+        if (value === undefined || value === null) {
+          return '';
+        }
+        return String(value)
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/\"/g, '&quot;')
+          .replace(/'/g, '&#39;');
+      }
+
+      function buildHiddenFields(query) {
+        var html = '';
+        for (var key in query) {
+          if (!Object.prototype.hasOwnProperty.call(query, key)) {
+            continue;
+          }
+          var values = valuesFromQueryEntry(query[key]);
+          for (var index = 0; index < values.length; index++) {
+            html += '<input type=\"hidden\" name=\"' + escapeHtml(key) + '\" value=\"' + escapeHtml(values[index]) + '\">';
+          }
+        }
+        return html;
+      }
+
+      function passwordPage(request, showError) {
+        var cleanQuery = copyQueryWithoutPassword(request.querystring || {});
+        var hiddenFields = buildHiddenFields(cleanQuery);
+        var attemptedMessage = showError
+          ? '<p class=\"error\">That password did not match. Try again.</p>'
+          : '<p class=\"hint\">Enter the shared password to continue.</p>';
+        var page = ''
+          + '<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\">'
+          + '<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">'
+          + '<title>Warpdeck 64 Access</title>'
+          + '<style>'
+          + ':root{color-scheme:dark;}'
+          + 'body{margin:0;min-height:100vh;display:grid;place-items:center;background:radial-gradient(1200px 700px at 12% 8%,#0f6674 0%,transparent 55%),radial-gradient(1000px 700px at 92% 88%,#7f3e1d 0%,transparent 60%),#060a17;color:#f3f5ff;font-family:-apple-system,BlinkMacSystemFont,\"Segoe UI\",Inter,Roboto,sans-serif;}'
+          + '.card{width:min(430px,92vw);padding:28px 24px 22px;border-radius:16px;background:linear-gradient(180deg,rgba(22,27,52,.95),rgba(11,15,33,.95));border:1px solid rgba(126,161,235,.24);box-shadow:0 18px 50px rgba(0,0,0,.45);}'
+          + '.eyebrow{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:#8ea0d0;font-weight:700;}'
+          + 'h1{margin:6px 0 8px;font-size:30px;line-height:1.05;}'
+          + 'p{margin:0 0 14px;color:#c6cee9;font-size:15px;line-height:1.35;}'
+          + '.hint{color:#b7c2e6;}'
+          + '.error{color:#ff7f9d;font-weight:600;}'
+          + 'label{display:block;margin:16px 0 8px;font-size:13px;color:#a8b5db;font-weight:600;}'
+          + 'input{width:100%;box-sizing:border-box;padding:12px 14px;border-radius:10px;border:1px solid rgba(126,161,235,.28);background:#0b1024;color:#f3f5ff;font-size:16px;outline:none;}'
+          + 'input:focus{border-color:#6bcce2;box-shadow:0 0 0 2px rgba(62,172,205,.2);}'
+          + 'button{margin-top:14px;width:100%;padding:12px 14px;border-radius:10px;border:1px solid rgba(252,180,67,.35);background:linear-gradient(180deg,#283349,#171f34);color:#f0f3ff;font-size:15px;font-weight:700;cursor:pointer;}'
+          + 'button:hover{border-color:rgba(252,180,67,.62);}'
+          + '.meta{margin-top:12px;font-size:12px;color:#8f9cc4;}'
+          + '.path{word-break:break-all;color:#7ecde0;}'
+          + '</style></head><body>'
+          + '<main class=\"card\">'
+          + '<div class=\"eyebrow\">Browser N64 Emulator</div>'
+          + '<h1>Warpdeck 64</h1>'
+          + attemptedMessage
+          + '<form method=\"get\" action=\"' + escapeHtml(request.uri || '/') + '\">'
+          + hiddenFields
+          + '<label for=\"password\">Password</label>'
+          + '<input id=\"password\" name=\"password\" type=\"password\" autocomplete=\"current-password\" autofocus required>'
+          + '<button type=\"submit\">Enter Warpdeck</button>'
+          + '</form>'
+          + '<div class=\"meta\">You can also open a shared URL with <code>?password=...</code> once to sign in automatically.</div>'
+          + '<div class=\"meta\">Request: <span class=\"path\">' + escapeHtml(locationFor(request, cleanQuery)) + '</span></div>'
+          + '</main></body></html>';
+
+        return {
+          statusCode: 200,
+          statusDescription: 'OK',
+          headers: {
+            'content-type': { value: 'text/html; charset=utf-8' },
+            'cache-control': { value: 'no-store, no-cache, must-revalidate' }
+          },
+          body: page
+        };
+      }
+
+      if (authEnabled && expectedPassword.length > 0) {
+        var query = request.querystring || {};
+        var providedPassword = getPasswordFromQuery(query);
+        var hasCookie = hasAuthCookie(request);
+        var hasValidPassword = providedPassword !== '' && providedPassword === expectedPassword;
+        var hasPasswordAttempt = providedPassword !== '';
+        var cleanQuery = copyQueryWithoutPassword(query);
+        var method = request.method || 'GET';
+        var isReadMethod = method === 'GET' || method === 'HEAD';
+        var uriForAuth = request.uri || '/';
+        var isApiRoute = uriForAuth.indexOf('/api/') === 0;
+        var isWsRoute = uriForAuth.indexOf('/ws/') === 0;
+
+        if (!hasCookie && hasValidPassword && isReadMethod) {
+          var cookieResponse = {
+            statusCode: 302,
+            statusDescription: 'Found',
+            headers: {
+              location: { value: locationFor(request, cleanQuery) },
+              'cache-control': { value: 'no-store' }
+            },
+            cookies: {}
+          };
+          cookieResponse.cookies[cookieName] = {
+            value: cookieToken,
+            attributes: 'Path=/; Max-Age=31536000; Secure; HttpOnly; SameSite=Lax'
+          };
+          return cookieResponse;
+        }
+
+        if (hasCookie && hasPasswordAttempt && isReadMethod) {
+          return {
+            statusCode: 302,
+            statusDescription: 'Found',
+            headers: {
+              location: { value: locationFor(request, cleanQuery) },
+              'cache-control': { value: 'no-store' }
+            }
+          };
+        }
+
+        if (!hasCookie) {
+          if (isApiRoute || isWsRoute || !isReadMethod) {
+            return {
+              statusCode: 401,
+              statusDescription: 'Unauthorized',
+              headers: {
+                'content-type': { value: 'application/json; charset=utf-8' },
+                'cache-control': { value: 'no-store' }
+              },
+              body: '{\"error\":\"Password required.\"}'
+            };
+          }
+
+          return passwordPage(request, hasPasswordAttempt && !hasValidPassword);
+        }
+      }
+
+      var uri = request.uri || '/';
+      if (uri.indexOf('/api/') === 0 || uri.indexOf('/ws/') === 0) {
+        return request;
+      }
+
+      if (uri.charAt(uri.length - 1) === '/') {
         request.uri = uri + 'index.html';
         return request;
       }
@@ -304,6 +565,13 @@ resource "aws_cloudfront_function" "spa_rewrite" {
       return request;
     }
   EOT
+
+  lifecycle {
+    precondition {
+      condition     = !var.basic_auth_enabled || trimspace(var.basic_auth_password) != ""
+      error_message = "Set basic_auth_password when basic_auth_enabled=true."
+    }
+  }
 }
 
 resource "aws_cloudfront_distribution" "site" {
@@ -362,6 +630,11 @@ resource "aws_cloudfront_distribution" "site" {
 
     cache_policy_id          = data.aws_cloudfront_cache_policy.caching_disabled.id
     origin_request_policy_id = data.aws_cloudfront_origin_request_policy.all_viewer_except_host.id
+
+    function_association {
+      event_type   = "viewer-request"
+      function_arn = aws_cloudfront_function.spa_rewrite.arn
+    }
   }
 
   ordered_cache_behavior {
@@ -375,6 +648,11 @@ resource "aws_cloudfront_distribution" "site" {
 
     cache_policy_id          = data.aws_cloudfront_cache_policy.caching_disabled.id
     origin_request_policy_id = data.aws_cloudfront_origin_request_policy.all_viewer_except_host.id
+
+    function_association {
+      event_type   = "viewer-request"
+      function_arn = aws_cloudfront_function.spa_rewrite.arn
+    }
   }
 
   restrictions {

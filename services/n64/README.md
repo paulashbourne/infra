@@ -31,6 +31,9 @@ domain_name          = "n64.paulashbourne.com"
 root_domain          = "paulashbourne.com"
 frontend_bucket_name = "<globally-unique-frontend-bucket>"
 artifact_bucket_name = "<globally-unique-artifact-bucket>"
+basic_auth_enabled   = true
+basic_auth_username  = "" # deprecated (legacy basic-auth field), keep empty
+basic_auth_password  = "<strong-password>"
 # Optional: pin subnet if your chosen instance type is not available in one AZ
 # coordinator_subnet_id = "subnet-xxxxxxxx"
 TFVARS
@@ -63,3 +66,7 @@ Use those outputs with deployment scripts in:
 - With `enable_custom_domain = false`, use the `site_domain_name` output (CloudFront domain).
 - With `enable_custom_domain = true`, `n64.paulashbourne.com` A/AAAA alias records override the wildcard DNS record.
 - The EC2 coordinator only accepts inbound traffic from CloudFront origin-facing IP ranges.
+- Password gate runs at CloudFront edge and protects frontend + `/api/*` + `/ws/*`.
+- Unauthenticated users see a custom password page (no browser basic-auth modal).
+- A successful login sets a long-lived secure cookie so the same device/browser does not prompt repeatedly.
+- Shared URLs can include `?password=<value>` once to auto-unlock and then redirect to a clean URL.
