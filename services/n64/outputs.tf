@@ -42,3 +42,8 @@ output "coordinator_log_group_name" {
   description = "CloudWatch log group for coordinator process logs"
   value       = aws_cloudwatch_log_group.coordinator.name
 }
+
+output "shared_proxy_port" {
+  description = "Port on the EC2 node used by the shared multi-tenant reverse proxy"
+  value       = var.shared_proxy_enabled ? var.shared_proxy_port : null
+}

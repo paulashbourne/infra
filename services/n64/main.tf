@@ -204,23 +204,64 @@ resource "aws_security_group" "coordinator" {
   tags = local.common_tags
 }
 
+resource "aws_security_group" "coordinator_shared_proxy" {
+  count       = var.shared_proxy_enabled && var.shared_proxy_port != var.coordinator_port ? 1 : 0
+  name        = "warpdeck-n64-coordinator-shared-proxy"
+  description = "Allow shared tenant proxy traffic from CloudFront origin network"
+  vpc_id      = data.aws_vpc.default.id
+
+  ingress {
+    description     = "CloudFront origin-facing network (shared proxy)"
+    from_port       = var.shared_proxy_port
+    to_port         = var.shared_proxy_port
+    protocol        = "tcp"
+    prefix_list_ids = [data.aws_ec2_managed_prefix_list.cloudfront_origin_facing.id]
+  }
+
+  egress {
+    description = "Allow all outbound traffic"
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = local.common_tags
+}
+
 resource "aws_instance" "coordinator" {
   ami                         = data.aws_ssm_parameter.al2023_arm64_ami.value
   instance_type               = var.instance_type
   subnet_id                   = var.coordinator_subnet_id != "" ? var.coordinator_subnet_id : data.aws_subnets.default.ids[0]
   associate_public_ip_address = true
-  vpc_security_group_ids      = [aws_security_group.coordinator.id]
-  iam_instance_profile        = aws_iam_instance_profile.coordinator.name
+  vpc_security_group_ids = var.shared_proxy_enabled && var.shared_proxy_port != var.coordinator_port ? concat(
+    [aws_security_group.coordinator.id],
+    aws_security_group.coordinator_shared_proxy[*].id
+  ) : [aws_security_group.coordinator.id]
+  iam_instance_profile = aws_iam_instance_profile.coordinator.name
 
   user_data = templatefile("${path.module}/user_data.sh.tmpl", {
-    aws_region                 = var.aws_region
-    coordinator_port           = var.coordinator_port
-    coordinator_log_group_name = aws_cloudwatch_log_group.coordinator.name
-    artifact_bucket_name       = var.artifact_bucket_name
+    aws_region                    = var.aws_region
+    server_hostname               = var.server_hostname
+    tailscale_enabled             = var.tailscale_enabled
+    tailscale_advertise_exit_node = var.tailscale_advertise_exit_node
+    tailscale_auth_key            = var.tailscale_auth_key
+    shared_proxy_enabled          = var.shared_proxy_enabled
+    shared_proxy_port             = var.shared_proxy_port
+    coordinator_port              = var.coordinator_port
+    coordinator_log_group_name    = aws_cloudwatch_log_group.coordinator.name
+    artifact_bucket_name          = var.artifact_bucket_name
   })
 
+  lifecycle {
+    precondition {
+      condition     = !(var.shared_proxy_enabled && var.shared_proxy_port == var.coordinator_port)
+      error_message = "shared_proxy_port must differ from coordinator_port when shared_proxy_enabled."
+    }
+  }
+
   tags = merge(local.common_tags, {
-    Name = "warpdeck-n64-coordinator"
+    Name = var.server_hostname
   })
 }
 
@@ -346,6 +387,26 @@ resource "aws_cloudfront_function" "spa_rewrite" {
         return [];
       }
 
+      function decodeQueryValue(value) {
+        if (value === undefined || value === null) {
+          return '';
+        }
+
+        var text = String(value);
+        if (text.length === 0) {
+          return '';
+        }
+
+        // Form/query submissions can arrive URL-encoded at the edge.
+        // Normalize '+' to spaces before decoding for compatibility.
+        var normalized = text.replace(/\+/g, ' ');
+        try {
+          return decodeURIComponent(normalized);
+        } catch (error) {
+          return normalized;
+        }
+      }
+
       function getPasswordFromQuery(query) {
         if (!query) {
           return '';
@@ -357,8 +418,9 @@ resource "aws_cloudfront_function" "spa_rewrite" {
           }
           var values = valuesFromQueryEntry(query[key]);
           for (var valueIndex = 0; valueIndex < values.length; valueIndex++) {
-            if (values[valueIndex]) {
-              return values[valueIndex];
+            var decoded = decodeQueryValue(values[valueIndex]);
+            if (decoded) {
+              return decoded;
             }
           }
         }
@@ -475,8 +537,6 @@ resource "aws_cloudfront_function" "spa_rewrite" {
           + '<input id=\"password\" name=\"password\" type=\"password\" autocomplete=\"current-password\" autofocus required>'
           + '<button type=\"submit\">Enter Warpdeck</button>'
           + '</form>'
-          + '<div class=\"meta\">You can also open a shared URL with <code>?password=...</code> once to sign in automatically.</div>'
-          + '<div class=\"meta\">Request: <span class=\"path\">' + escapeHtml(locationFor(request, cleanQuery)) + '</span></div>'
           + '</main></body></html>';
 
         return {

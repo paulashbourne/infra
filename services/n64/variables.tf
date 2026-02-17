@@ -38,6 +38,43 @@ variable "instance_type" {
   default     = "t4g.nano"
 }
 
+variable "server_hostname" {
+  description = "Hostname/instance label for the coordinator EC2 node."
+  type        = string
+  default     = "paulnode-uswest2"
+}
+
+variable "tailscale_enabled" {
+  description = "Install and configure Tailscale on the EC2 node."
+  type        = bool
+  default     = true
+}
+
+variable "tailscale_advertise_exit_node" {
+  description = "Advertise this node as a Tailscale exit node."
+  type        = bool
+  default     = true
+}
+
+variable "tailscale_auth_key" {
+  description = "Optional Tailscale auth key for unattended initial join. Leave empty if the node is already authenticated."
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "shared_proxy_enabled" {
+  description = "Install and configure a shared reverse proxy for hosting multiple apps on this node."
+  type        = bool
+  default     = true
+}
+
+variable "shared_proxy_port" {
+  description = "Port exposed by the shared reverse proxy for multi-tenant app routing."
+  type        = number
+  default     = 8080
+}
+
 variable "coordinator_subnet_id" {
   description = "Optional subnet ID for the coordinator instance. Set this when a specific AZ is required for the selected instance type."
   type        = string
