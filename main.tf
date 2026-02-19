@@ -8,56 +8,14 @@ locals {
     "paulashbourne.ca",
   ])
 
-  # Records mirrored from current public DNS before registrar transfer.
+  # Keep paulashbourne.com email-only (iCloud Mail) records.
   records = [
-    {
-      zone    = "paulashbourne.com"
-      name    = "paulashbourne.com"
-      type    = "A"
-      ttl     = 14400
-      records = ["146.190.15.151"]
-    },
-    {
-      zone    = "paulashbourne.com"
-      name    = "server.paulashbourne.com"
-      type    = "A"
-      ttl     = 14400
-      records = ["146.190.15.151"]
-    },
-    {
-      zone    = "paulashbourne.com"
-      name    = "_domainconnect.paulashbourne.com"
-      type    = "CNAME"
-      ttl     = 14400
-      records = ["_domainconnect.domains.squarespace.com."]
-    },
-    {
-      zone    = "paulashbourne.com"
-      name    = "*.paulashbourne.com"
-      type    = "CNAME"
-      ttl     = 14400
-      records = ["paulashbourne.com."]
-    },
     {
       zone    = "paulashbourne.com"
       name    = "sig1._domainkey.paulashbourne.com"
       type    = "CNAME"
       ttl     = 14400
       records = ["sig1.dkim.paulashbourne.com.at.icloudmailadmin.com."]
-    },
-    {
-      zone    = "paulashbourne.com"
-      name    = "fbh334di6xzz.paulashbourne.com"
-      type    = "CNAME"
-      ttl     = 14400
-      records = ["gv-imrgqixsjp45zo.dv.googlehosted.com."]
-    },
-    {
-      zone    = "paulashbourne.com"
-      name    = "p74tnc3c5usf.paulashbourne.com"
-      type    = "CNAME"
-      ttl     = 14400
-      records = ["gv-2fcluiwcr62cs2.dv.googlehosted.com."]
     },
     {
       zone = "paulashbourne.com"
