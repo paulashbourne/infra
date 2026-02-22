@@ -8,6 +8,8 @@ locals {
     "paulashbourne.ca",
   ])
 
+  portfolio_pulse_mail_domain = "portfoliopulse.paulashbourne.com"
+
   # Keep paulashbourne.com email-only (iCloud Mail) records.
   records = [
     {
@@ -81,6 +83,31 @@ resource "aws_route53_record" "records" {
   records  = each.value.records
 }
 
+resource "aws_ses_domain_identity" "portfolio_pulse_mail" {
+  domain = local.portfolio_pulse_mail_domain
+}
+
+resource "aws_route53_record" "portfolio_pulse_ses_verification" {
+  zone_id = aws_route53_zone.zones["paulashbourne.com"].zone_id
+  name    = "_amazonses.${local.portfolio_pulse_mail_domain}"
+  type    = "TXT"
+  ttl     = 600
+  records = [aws_ses_domain_identity.portfolio_pulse_mail.verification_token]
+}
+
+resource "aws_ses_domain_dkim" "portfolio_pulse_mail" {
+  domain = aws_ses_domain_identity.portfolio_pulse_mail.domain
+}
+
+resource "aws_route53_record" "portfolio_pulse_ses_dkim" {
+  count   = 3
+  zone_id = aws_route53_zone.zones["paulashbourne.com"].zone_id
+  name    = "${aws_ses_domain_dkim.portfolio_pulse_mail.dkim_tokens[count.index]}._domainkey.${local.portfolio_pulse_mail_domain}"
+  type    = "CNAME"
+  ttl     = 600
+  records = ["${aws_ses_domain_dkim.portfolio_pulse_mail.dkim_tokens[count.index]}.dkim.amazonses.com"]
+}
+
 output "hosted_zone_ids" {
   value = {
     for zone_name, zone in aws_route53_zone.zones :
@@ -93,4 +120,12 @@ output "nameservers" {
     for zone_name, zone in aws_route53_zone.zones :
     zone_name => zone.name_servers
   }
+}
+
+output "portfolio_pulse_ses_domain" {
+  value = local.portfolio_pulse_mail_domain
+}
+
+output "portfolio_pulse_ses_from_address" {
+  value = "Portfolio Pulse <bot@${local.portfolio_pulse_mail_domain}>"
 }

@@ -8,11 +8,13 @@ Route53 DNS bootstrap for:
 Service stacks:
 
 - `services/n64` for Warpdeck 64 app hosting (`n64.paulashbourne.com`)
+- SES sender-domain DNS for Portfolio Pulse email notifications (`portfoliopulse.paulashbourne.com`)
 
 ## What this creates
 
 - Two Route53 public hosted zones (one per domain)
 - DNS records mirrored from current production DNS to avoid downtime during registrar transfer
+- SES domain identity DNS records for `portfoliopulse.paulashbourne.com` (verification + DKIM)
 
 ## Usage
 
