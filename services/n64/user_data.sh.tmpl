@@ -165,6 +165,9 @@ MULTIPLAYER_HOST=0.0.0.0
 MULTIPLAYER_PORT=${coordinator_port}
 AWS_REGION=${aws_region}
 ARTIFACT_BUCKET=${artifact_bucket_name}
+BASIC_AUTH_EDGE_COOKIE_NAME=${basic_auth_cookie_name}
+BASIC_AUTH_EDGE_COOKIE_TOKEN=${basic_auth_cookie_token}
+BASIC_AUTH_EDGE_COOKIE_MAX_AGE_SECONDS=31536000
 ENV
 
 cat > /etc/systemd/system/n64-coordinator.service <<'SERVICE'

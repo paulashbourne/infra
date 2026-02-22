@@ -251,6 +251,8 @@ resource "aws_instance" "coordinator" {
     coordinator_port              = var.coordinator_port
     coordinator_log_group_name    = aws_cloudwatch_log_group.coordinator.name
     artifact_bucket_name          = var.artifact_bucket_name
+    basic_auth_cookie_name        = local.basic_auth_cookie_name
+    basic_auth_cookie_token       = local.basic_auth_cookie_token
   })
 
   lifecycle {
