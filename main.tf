@@ -9,6 +9,8 @@ locals {
   ])
 
   portfolio_pulse_mail_domain = "portfoliopulse.paulashbourne.com"
+  portfolio_pulse_web_domain  = "portfoliopulse.paulashbourne.com"
+  portfolio_pulse_web_target  = "paulbase.tail9cc783.ts.net."
 
   # Keep paulashbourne.com email-only (iCloud Mail) records.
   records = [
@@ -128,4 +130,14 @@ output "portfolio_pulse_ses_domain" {
 
 output "portfolio_pulse_ses_from_address" {
   value = "Portfolio Pulse <bot@${local.portfolio_pulse_mail_domain}>"
+}
+
+resource "aws_route53_record" "portfolio_pulse_service" {
+  zone_id = aws_route53_zone.zones["paulashbourne.com"].zone_id
+  name    = local.portfolio_pulse_web_domain
+  type    = "CNAME"
+  ttl     = 60
+  records = [local.portfolio_pulse_web_target]
+
+  allow_overwrite = true
 }
