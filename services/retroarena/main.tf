@@ -579,6 +579,12 @@ resource "aws_cloudfront_function" "spa_rewrite" {
         var isApiRoute = uriForAuth.indexOf('/api/') === 0;
         var isWsRoute = uriForAuth.indexOf('/ws/') === 0;
 
+        // Keep the password gate for browser UI routes only.
+        // API/WebSocket traffic must remain accessible for tvOS/web clients.
+        if (isApiRoute || isWsRoute) {
+          return request;
+        }
+
         if (!hasCookie && hasValidPassword && isReadMethod) {
           var cookieResponse = {
             statusCode: 302,
@@ -608,7 +614,7 @@ resource "aws_cloudfront_function" "spa_rewrite" {
         }
 
         if (!hasCookie) {
-          if (isApiRoute || isWsRoute || !isReadMethod) {
+          if (!isReadMethod) {
             return {
               statusCode: 401,
               statusDescription: 'Unauthorized',

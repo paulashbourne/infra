@@ -112,7 +112,7 @@ variable "enable_cpu_alarm" {
 }
 
 variable "basic_auth_enabled" {
-  description = "Enable CloudFront edge password gate for the whole site (frontend, API, and WebSocket paths)."
+  description = "Enable CloudFront edge password gate for browser UI routes (API and WebSocket routes are excluded)."
   type        = bool
   default     = true
 }

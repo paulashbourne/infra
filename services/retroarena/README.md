@@ -88,7 +88,8 @@ Use those outputs with deployment scripts in:
 - The shared reverse proxy listens on `shared_proxy_port` (default `8080`) and routes tenant paths via files in `/etc/paulnode/tenants-enabled/`.
 - Default tenant mapping keeps current behavior: `/api/*` and `/ws/*` proxy to `127.0.0.1:${coordinator_port}`.
 - Add new tenant routes with `paulnode-register-route <name> <path-prefix> <upstream-url>`.
-- Password gate runs at CloudFront edge and protects frontend + `/api/*` + `/ws/*`.
+- Password gate runs at CloudFront edge for browser UI routes only.
+- API and WebSocket routes (`/api/*`, `/ws/*`) are intentionally excluded so app clients can connect without the shared web password.
 - Unauthenticated users see a custom password page (no browser basic-auth modal).
 - A successful login sets a long-lived secure cookie so the same device/browser does not prompt repeatedly.
 - Shared URLs can include `?password=<value>` once to auto-unlock and then redirect to a clean URL.
