@@ -3,6 +3,12 @@ data "aws_route53_zone" "root" {
   private_zone = false
 }
 
+data "aws_route53_zone" "additional_roots" {
+  for_each     = var.enable_custom_domain ? local.additional_zone_names : toset([])
+  name         = "${each.value}."
+  private_zone = false
+}
+
 data "aws_vpc" "default" {
   default = true
 }
@@ -253,6 +259,7 @@ resource "aws_instance" "coordinator" {
     artifact_bucket_name          = var.artifact_bucket_name
     basic_auth_cookie_name        = local.basic_auth_cookie_name
     basic_auth_cookie_token       = local.basic_auth_cookie_token
+    retroarena_public_web_origin  = var.retroarena_public_web_origin
   })
 
   lifecycle {
@@ -286,10 +293,11 @@ resource "aws_cloudfront_origin_access_control" "frontend" {
 }
 
 resource "aws_acm_certificate" "site" {
-  count             = var.enable_custom_domain ? 1 : 0
-  provider          = aws.us_east_1
-  domain_name       = var.domain_name
-  validation_method = "DNS"
+  count                     = var.enable_custom_domain ? 1 : 0
+  provider                  = aws.us_east_1
+  domain_name               = local.primary_domain_name
+  subject_alternative_names = local.additional_domain_names
+  validation_method         = "DNS"
 
   lifecycle {
     create_before_destroy = true
@@ -299,16 +307,10 @@ resource "aws_acm_certificate" "site" {
 }
 
 resource "aws_route53_record" "site_cert_validation" {
-  for_each = var.enable_custom_domain ? {
-    for dvo in aws_acm_certificate.site[0].domain_validation_options : dvo.domain_name => {
-      name   = dvo.resource_record_name
-      record = dvo.resource_record_value
-      type   = dvo.resource_record_type
-    }
-  } : {}
+  for_each = local.site_cert_validation_records
 
   allow_overwrite = true
-  zone_id         = data.aws_route53_zone.root.zone_id
+  zone_id         = local.custom_zone_ids[each.value.zone_name]
   name            = each.value.name
   records         = [each.value.record]
   ttl             = 60
@@ -640,7 +642,7 @@ resource "aws_cloudfront_distribution" "site" {
   enabled             = true
   is_ipv6_enabled     = true
   comment             = "Warpdeck64 single-domain frontend + multiplayer coordinator"
-  aliases             = var.enable_custom_domain ? [var.domain_name] : []
+  aliases             = local.site_aliases
   price_class         = "PriceClass_100"
   default_root_object = "index.html"
   http_version        = "http2and3"
@@ -760,10 +762,11 @@ resource "aws_s3_bucket_policy" "frontend" {
 }
 
 resource "aws_route53_record" "site_a" {
-  count   = var.enable_custom_domain ? 1 : 0
-  zone_id = data.aws_route53_zone.root.zone_id
-  name    = var.domain_name
-  type    = "A"
+  count           = var.enable_custom_domain ? 1 : 0
+  zone_id         = data.aws_route53_zone.root.zone_id
+  name            = local.primary_domain_name
+  type            = "A"
+  allow_overwrite = true
 
   alias {
     name                   = aws_cloudfront_distribution.site.domain_name
@@ -773,10 +776,39 @@ resource "aws_route53_record" "site_a" {
 }
 
 resource "aws_route53_record" "site_aaaa" {
-  count   = var.enable_custom_domain ? 1 : 0
-  zone_id = data.aws_route53_zone.root.zone_id
-  name    = var.domain_name
-  type    = "AAAA"
+  count           = var.enable_custom_domain ? 1 : 0
+  zone_id         = data.aws_route53_zone.root.zone_id
+  name            = local.primary_domain_name
+  type            = "AAAA"
+  allow_overwrite = true
+
+  alias {
+    name                   = aws_cloudfront_distribution.site.domain_name
+    zone_id                = aws_cloudfront_distribution.site.hosted_zone_id
+    evaluate_target_health = false
+  }
+}
+
+resource "aws_route53_record" "site_additional_a" {
+  for_each        = var.enable_custom_domain ? local.additional_custom_domains : {}
+  zone_id         = local.custom_zone_ids[each.value]
+  name            = each.key
+  type            = "A"
+  allow_overwrite = true
+
+  alias {
+    name                   = aws_cloudfront_distribution.site.domain_name
+    zone_id                = aws_cloudfront_distribution.site.hosted_zone_id
+    evaluate_target_health = false
+  }
+}
+
+resource "aws_route53_record" "site_additional_aaaa" {
+  for_each        = var.enable_custom_domain ? local.additional_custom_domains : {}
+  zone_id         = local.custom_zone_ids[each.value]
+  name            = each.key
+  type            = "AAAA"
+  allow_overwrite = true
 
   alias {
     name                   = aws_cloudfront_distribution.site.domain_name

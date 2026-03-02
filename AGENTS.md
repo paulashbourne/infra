@@ -2,9 +2,10 @@
 
 ## Purpose
 This repository manages personal infrastructure for `paulashbourne.com` and `paulashbourne.ca`, plus service-specific stacks (currently `services/n64`).
+The `services/n64` stack can also manage additional custom domains (currently `retroarena.live`) that terminate on the same CloudFront distribution.
 
 ## Repo Layout
-- `main.tf`, `variables.tf`, `versions.tf`: root DNS stack (Route53 hosted zones + records).
+- `main.tf`, `variables.tf`, `versions.tf`: root DNS stack (Route53 hosted zones + records for base domains).
 - `services/n64/`: Warpdeck 64 hosting stack (CloudFront, S3, EC2 coordinator, optional custom domain wiring).
 
 ## Terraform Conventions
@@ -25,7 +26,8 @@ This repository manages personal infrastructure for `paulashbourne.com` and `pau
   - Public resolver answers (`dig +short <name> <type>`)
   - Route53 authoritative answers (`dig +short @<route53-ns> <name> <type>`)
 - For `services/n64`, custom domain records are conditional:
-  - `enable_custom_domain = false` means no `n64.paulashbourne.com` Route53 alias records are created.
+  - `enable_custom_domain = false` means no app domain Route53 alias records are created.
+  - `enable_custom_domain = true` + `additional_custom_domains = { "retroarena.live" = "retroarena.live" }` keeps `n64.paulashbourne.ca` active and also routes `retroarena.live` to the same CloudFront distribution with ACM SAN coverage.
 
 ## Credentials and Access
 - AWS account in use: `928352318751`.

@@ -22,6 +22,12 @@ variable "enable_custom_domain" {
   default     = false
 }
 
+variable "additional_custom_domains" {
+  description = "Optional map of additional domain aliases to Route53 root zones when enable_custom_domain=true (for example, { \"retroarena.live\" = \"retroarena.live\" })."
+  type        = map(string)
+  default     = {}
+}
+
 variable "frontend_bucket_name" {
   description = "Global-unique S3 bucket name for static frontend assets."
   type        = string
@@ -85,6 +91,12 @@ variable "coordinator_port" {
   description = "Coordinator HTTP/WebSocket port exposed to CloudFront origin traffic."
   type        = number
   default     = 8787
+}
+
+variable "retroarena_public_web_origin" {
+  description = "Public web origin used by coordinator-generated links (for example TV QR sign-in verification URL)."
+  type        = string
+  default     = "https://n64.paulashbourne.ca"
 }
 
 variable "cloudwatch_log_retention_days" {

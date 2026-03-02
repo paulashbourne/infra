@@ -1,6 +1,6 @@
 # Warpdeck 64 Hosting Stack
 
-Terraform stack for production hosting of `n64.paulashbourne.com`:
+Terraform stack for production hosting of `n64.paulashbourne.ca` (plus optional additional aliases like `retroarena.live`):
 
 - CloudFront + private S3 static frontend
 - EC2 `t4g.nano` multiplayer coordinator
@@ -12,11 +12,12 @@ Terraform stack for production hosting of `n64.paulashbourne.com`:
 Domain transfer friendly mode:
 
 - By default (`enable_custom_domain = false`), the stack serves via the CloudFront default domain (no DNS cutover required).
-- When your domain transfer/delegation is ready, set `enable_custom_domain = true` to attach ACM + Route53 alias for `n64.paulashbourne.com`.
+- When your domain transfer/delegation is ready, set `enable_custom_domain = true` to attach ACM + Route53 aliases.
 
 ## Prerequisites
 
-- Existing Route53 hosted zone for `paulashbourne.com`
+- Existing Route53 hosted zone for the primary app domain root (for example `paulashbourne.ca`)
+- Existing Route53 hosted zones for any entries in `additional_custom_domains` (for example `retroarena.live`)
 - AWS credentials with permissions for Route53, ACM, CloudFront, EC2, IAM, S3, and CloudWatch
 - Two globally unique S3 bucket names (frontend + backend artifacts)
 - Tailscale account (and optionally an auth key for unattended bootstrap)
@@ -29,8 +30,11 @@ cd /Users/paul/git/paulashbourne/infra/services/n64
 cat > terraform.tfvars <<TFVARS
 aws_region           = "us-east-1"
 enable_custom_domain = false
-domain_name          = "n64.paulashbourne.com"
-root_domain          = "paulashbourne.com"
+domain_name          = "n64.paulashbourne.ca"
+root_domain          = "paulashbourne.ca"
+additional_custom_domains = {
+  "retroarena.live" = "retroarena.live"
+}
 frontend_bucket_name = "<globally-unique-frontend-bucket>"
 artifact_bucket_name = "<globally-unique-artifact-bucket>"
 server_hostname      = "paulnode-uswest2"
@@ -58,6 +62,7 @@ terraform apply
 
 ```bash
 terraform output site_domain_name
+terraform output site_alias_domains
 terraform output cloudfront_distribution_id
 terraform output frontend_bucket_name
 terraform output artifact_bucket_name
@@ -73,7 +78,8 @@ Use those outputs with deployment scripts in:
 
 - This stack assumes local Terraform state (per current preference).
 - With `enable_custom_domain = false`, use the `site_domain_name` output (CloudFront domain).
-- With `enable_custom_domain = true`, `n64.paulashbourne.com` A/AAAA alias records override the wildcard DNS record.
+- With `enable_custom_domain = true`, the stack configures ACM + CloudFront aliases for `domain_name` and any `additional_custom_domains`.
+- The stack creates Route53 alias `A`/`AAAA` records for `domain_name` and for each additional domain in `additional_custom_domains`.
 - The EC2 coordinator only accepts inbound traffic from CloudFront origin-facing IP ranges.
 - Tailscale is installed/configured by user-data when `tailscale_enabled = true`.
 - Exit-node advertisement is enabled when `tailscale_advertise_exit_node = true`.

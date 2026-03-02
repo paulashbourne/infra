@@ -3,6 +3,11 @@ output "site_domain_name" {
   value       = var.enable_custom_domain ? var.domain_name : aws_cloudfront_distribution.site.domain_name
 }
 
+output "site_alias_domains" {
+  description = "All custom domains attached to the CloudFront distribution."
+  value       = var.enable_custom_domain ? local.site_aliases : []
+}
+
 output "cloudfront_distribution_id" {
   description = "CloudFront distribution ID for invalidations"
   value       = aws_cloudfront_distribution.site.id

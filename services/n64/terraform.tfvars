@@ -1,7 +1,10 @@
-aws_region                    = "us-east-1"
-enable_custom_domain          = true
-domain_name                   = "n64.paulashbourne.ca"
-root_domain                   = "paulashbourne.ca"
+aws_region           = "us-east-1"
+enable_custom_domain = true
+domain_name          = "n64.paulashbourne.ca"
+root_domain          = "paulashbourne.ca"
+additional_custom_domains = {
+  "retroarena.live" = "retroarena.live"
+}
 frontend_bucket_name          = "warpdeck64-front-928352318751-1770967196"
 artifact_bucket_name          = "warpdeck64-artifacts-928352318751-1770967196"
 instance_type                 = "t4g.nano"

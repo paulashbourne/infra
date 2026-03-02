@@ -7,7 +7,7 @@ Route53 DNS bootstrap for:
 
 Service stacks:
 
-- `services/n64` for Warpdeck 64 app hosting (`n64.paulashbourne.com`)
+- `services/n64` for Warpdeck 64 app hosting (`n64.paulashbourne.ca` with optional additional aliases)
 - SES sender-domain DNS for Portfolio Pulse email notifications (`portfoliopulse.paulashbourne.com`)
 
 ## What this creates
@@ -56,3 +56,4 @@ cd /Users/paul/git/paulashbourne/infra/services/n64
 ```
 
 See `/Users/paul/git/paulashbourne/infra/services/n64/README.md` for full variables, plan/apply steps, and post-apply outputs.
+Use that stack for custom app domains such as `retroarena.live`.
