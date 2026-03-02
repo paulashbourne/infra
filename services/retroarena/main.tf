@@ -110,7 +110,7 @@ resource "aws_s3_bucket_versioning" "artifact" {
 }
 
 resource "aws_cloudwatch_log_group" "coordinator" {
-  name              = "/warpdeck/n64/coordinator"
+  name              = "/retroarena/coordinator"
   retention_in_days = var.cloudwatch_log_retention_days
   tags              = local.common_tags
 }
@@ -127,7 +127,7 @@ data "aws_iam_policy_document" "ec2_assume_role" {
 }
 
 resource "aws_iam_role" "coordinator" {
-  name               = "warpdeck-n64-coordinator-role"
+  name               = "retroarena-coordinator-role"
   assume_role_policy = data.aws_iam_policy_document.ec2_assume_role.json
   tags               = local.common_tags
 }
@@ -176,18 +176,18 @@ data "aws_iam_policy_document" "coordinator_runtime" {
 }
 
 resource "aws_iam_role_policy" "coordinator_runtime" {
-  name   = "warpdeck-n64-coordinator-runtime"
+  name   = "retroarena-coordinator-runtime"
   role   = aws_iam_role.coordinator.id
   policy = data.aws_iam_policy_document.coordinator_runtime.json
 }
 
 resource "aws_iam_instance_profile" "coordinator" {
-  name = "warpdeck-n64-coordinator-instance-profile"
+  name = "retroarena-coordinator-instance-profile"
   role = aws_iam_role.coordinator.name
 }
 
 resource "aws_security_group" "coordinator" {
-  name        = "warpdeck-n64-coordinator"
+  name        = "retroarena-coordinator"
   description = "Allow multiplayer coordinator traffic only from CloudFront origin network"
   vpc_id      = data.aws_vpc.default.id
 
@@ -208,11 +208,15 @@ resource "aws_security_group" "coordinator" {
   }
 
   tags = local.common_tags
+
+  lifecycle {
+    create_before_destroy = true
+  }
 }
 
 resource "aws_security_group" "coordinator_shared_proxy" {
   count       = var.shared_proxy_enabled && var.shared_proxy_port != var.coordinator_port ? 1 : 0
-  name        = "warpdeck-n64-coordinator-shared-proxy"
+  name        = "retroarena-coordinator-shared-proxy"
   description = "Allow shared tenant proxy traffic from CloudFront origin network"
   vpc_id      = data.aws_vpc.default.id
 
@@ -233,6 +237,10 @@ resource "aws_security_group" "coordinator_shared_proxy" {
   }
 
   tags = local.common_tags
+
+  lifecycle {
+    create_before_destroy = true
+  }
 }
 
 resource "aws_instance" "coordinator" {
@@ -263,6 +271,10 @@ resource "aws_instance" "coordinator" {
   })
 
   lifecycle {
+    # Keep the coordinator stable unless we intentionally roll it.
+    # The AMI data source tracks latest AL2023 and would otherwise force replacement.
+    ignore_changes = [ami]
+
     precondition {
       condition     = !(var.shared_proxy_enabled && var.shared_proxy_port == var.coordinator_port)
       error_message = "shared_proxy_port must differ from coordinator_port when shared_proxy_enabled."
@@ -285,8 +297,8 @@ resource "aws_eip_association" "coordinator" {
 }
 
 resource "aws_cloudfront_origin_access_control" "frontend" {
-  name                              = "warpdeck-n64-frontend-oac"
-  description                       = "OAC for Warpdeck64 static frontend"
+  name                              = "retroarena-frontend-oac"
+  description                       = "OAC for RetroArena static frontend"
   origin_access_control_origin_type = "s3"
   signing_behavior                  = "always"
   signing_protocol                  = "sigv4"
@@ -327,10 +339,10 @@ resource "aws_acm_certificate_validation" "site" {
 }
 
 resource "aws_cloudfront_function" "spa_rewrite" {
-  name    = "warpdeck-n64-spa-rewrite"
+  name    = "retroarena-spa-rewrite"
   runtime = "cloudfront-js-1.0"
   publish = true
-  comment = "Password gate + SPA rewrite for Warpdeck64"
+  comment = "Password gate + SPA rewrite for RetroArena"
 
   code = <<-EOT
     function handler(event) {
@@ -513,7 +525,7 @@ resource "aws_cloudfront_function" "spa_rewrite" {
         var page = ''
           + '<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\">'
           + '<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">'
-          + '<title>Warpdeck 64 Access</title>'
+          + '<title>RetroArena Access</title>'
           + '<style>'
           + ':root{color-scheme:dark;}'
           + 'body{margin:0;min-height:100vh;display:grid;place-items:center;background:radial-gradient(1200px 700px at 12% 8%,#0f6674 0%,transparent 55%),radial-gradient(1000px 700px at 92% 88%,#7f3e1d 0%,transparent 60%),#060a17;color:#f3f5ff;font-family:-apple-system,BlinkMacSystemFont,\"Segoe UI\",Inter,Roboto,sans-serif;}'
@@ -532,14 +544,14 @@ resource "aws_cloudfront_function" "spa_rewrite" {
           + '.path{word-break:break-all;color:#7ecde0;}'
           + '</style></head><body>'
           + '<main class=\"card\">'
-          + '<div class=\"eyebrow\">Browser N64 Emulator</div>'
-          + '<h1>Warpdeck 64</h1>'
+          + '<div class=\"eyebrow\">RetroArena Cloud Play</div>'
+          + '<h1>RetroArena</h1>'
           + attemptedMessage
           + '<form method=\"get\" action=\"' + escapeHtml(request.uri || '/') + '\">'
           + hiddenFields
           + '<label for=\"password\">Password</label>'
           + '<input id=\"password\" name=\"password\" type=\"password\" autocomplete=\"current-password\" autofocus required>'
-          + '<button type=\"submit\">Enter Warpdeck</button>'
+          + '<button type=\"submit\">Enter RetroArena</button>'
           + '</form>'
           + '</main></body></html>';
 
@@ -631,6 +643,8 @@ resource "aws_cloudfront_function" "spa_rewrite" {
   EOT
 
   lifecycle {
+    create_before_destroy = true
+
     precondition {
       condition     = !var.basic_auth_enabled || trimspace(var.basic_auth_password) != ""
       error_message = "Set basic_auth_password when basic_auth_enabled=true."
@@ -638,10 +652,114 @@ resource "aws_cloudfront_function" "spa_rewrite" {
   }
 }
 
+resource "aws_cloudfront_function" "legacy_domain_redirect" {
+  count   = var.enable_custom_domain && length(local.additional_domain_names) > 0 ? 1 : 0
+  name    = "retroarena-legacy-domain-redirect"
+  runtime = "cloudfront-js-1.0"
+  publish = true
+  comment = "Redirect legacy aliases to primary RetroArena domain"
+
+  code = <<-EOT
+    function handler(event) {
+      var request = event.request;
+      var query = request.querystring || {};
+      var parts = [];
+
+      for (var key in query) {
+        if (!Object.prototype.hasOwnProperty.call(query, key)) {
+          continue;
+        }
+        var entry = query[key];
+        if (entry && entry.multiValue && entry.multiValue.length > 0) {
+          for (var i = 0; i < entry.multiValue.length; i++) {
+            if (entry.multiValue[i] && entry.multiValue[i].value !== undefined) {
+              parts.push(encodeURIComponent(key) + '=' + encodeURIComponent(entry.multiValue[i].value));
+            }
+          }
+        } else if (entry && entry.value !== undefined) {
+          parts.push(encodeURIComponent(key) + '=' + encodeURIComponent(entry.value));
+        }
+      }
+
+      var uri = request.uri || '/';
+      var location = 'https://${local.primary_domain_name}' + uri + (parts.length > 0 ? '?' + parts.join('&') : '');
+
+      return {
+        statusCode: 301,
+        statusDescription: 'Moved Permanently',
+        headers: {
+          location: { value: location },
+          'cache-control': { value: 'no-store' }
+        }
+      };
+    }
+  EOT
+
+  lifecycle {
+    create_before_destroy = true
+  }
+}
+
+resource "aws_cloudfront_distribution" "legacy_domain_redirect" {
+  count               = var.enable_custom_domain && length(local.additional_domain_names) > 0 ? 1 : 0
+  enabled             = true
+  is_ipv6_enabled     = true
+  comment             = "Legacy domain redirect to ${local.primary_domain_name}"
+  aliases             = local.additional_domain_names
+  price_class         = "PriceClass_100"
+  default_root_object = "index.html"
+  http_version        = "http2and3"
+
+  origin {
+    domain_name = local.primary_domain_name
+    origin_id   = "primary-site-origin"
+
+    custom_origin_config {
+      http_port                = 80
+      https_port               = 443
+      origin_protocol_policy   = "https-only"
+      origin_ssl_protocols     = ["TLSv1.2"]
+      origin_read_timeout      = 30
+      origin_keepalive_timeout = 30
+    }
+  }
+
+  default_cache_behavior {
+    target_origin_id       = "primary-site-origin"
+    viewer_protocol_policy = "redirect-to-https"
+    compress               = true
+
+    allowed_methods = ["GET", "HEAD", "OPTIONS"]
+    cached_methods  = ["GET", "HEAD"]
+
+    cache_policy_id = data.aws_cloudfront_cache_policy.caching_disabled.id
+
+    function_association {
+      event_type   = "viewer-request"
+      function_arn = aws_cloudfront_function.legacy_domain_redirect[0].arn
+    }
+  }
+
+  restrictions {
+    geo_restriction {
+      restriction_type = "none"
+    }
+  }
+
+  viewer_certificate {
+    acm_certificate_arn            = aws_acm_certificate_validation.site[0].certificate_arn
+    ssl_support_method             = "sni-only"
+    minimum_protocol_version       = "TLSv1.2_2021"
+    cloudfront_default_certificate = false
+  }
+
+  tags = local.common_tags
+}
+
 resource "aws_cloudfront_distribution" "site" {
   enabled             = true
   is_ipv6_enabled     = true
-  comment             = "Warpdeck64 single-domain frontend + multiplayer coordinator"
+  comment             = "RetroArena single-domain frontend + multiplayer coordinator"
   aliases             = local.site_aliases
   price_class         = "PriceClass_100"
   default_root_object = "index.html"
@@ -797,8 +915,8 @@ resource "aws_route53_record" "site_additional_a" {
   allow_overwrite = true
 
   alias {
-    name                   = aws_cloudfront_distribution.site.domain_name
-    zone_id                = aws_cloudfront_distribution.site.hosted_zone_id
+    name                   = length(aws_cloudfront_distribution.legacy_domain_redirect) > 0 ? aws_cloudfront_distribution.legacy_domain_redirect[0].domain_name : aws_cloudfront_distribution.site.domain_name
+    zone_id                = length(aws_cloudfront_distribution.legacy_domain_redirect) > 0 ? aws_cloudfront_distribution.legacy_domain_redirect[0].hosted_zone_id : aws_cloudfront_distribution.site.hosted_zone_id
     evaluate_target_health = false
   }
 }
@@ -811,15 +929,15 @@ resource "aws_route53_record" "site_additional_aaaa" {
   allow_overwrite = true
 
   alias {
-    name                   = aws_cloudfront_distribution.site.domain_name
-    zone_id                = aws_cloudfront_distribution.site.hosted_zone_id
+    name                   = length(aws_cloudfront_distribution.legacy_domain_redirect) > 0 ? aws_cloudfront_distribution.legacy_domain_redirect[0].domain_name : aws_cloudfront_distribution.site.domain_name
+    zone_id                = length(aws_cloudfront_distribution.legacy_domain_redirect) > 0 ? aws_cloudfront_distribution.legacy_domain_redirect[0].hosted_zone_id : aws_cloudfront_distribution.site.hosted_zone_id
     evaluate_target_health = false
   }
 }
 
 resource "aws_cloudwatch_metric_alarm" "status_check_failed" {
-  alarm_name          = "warpdeck-n64-ec2-status-check-failed"
-  alarm_description   = "Status check failures on Warpdeck64 multiplayer coordinator"
+  alarm_name          = "retroarena-ec2-status-check-failed"
+  alarm_description   = "Status check failures on RetroArena multiplayer coordinator"
   comparison_operator = "GreaterThanThreshold"
   evaluation_periods  = 2
   metric_name         = "StatusCheckFailed"
@@ -841,7 +959,7 @@ resource "aws_cloudwatch_metric_alarm" "status_check_failed" {
 resource "aws_cloudwatch_metric_alarm" "cpu_high" {
   count = var.enable_cpu_alarm ? 1 : 0
 
-  alarm_name          = "warpdeck-n64-ec2-cpu-high"
+  alarm_name          = "retroarena-ec2-cpu-high"
   alarm_description   = "Coordinator CPU > 80% for 15 minutes"
   comparison_operator = "GreaterThanThreshold"
   evaluation_periods  = 3

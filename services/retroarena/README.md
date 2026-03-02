@@ -1,6 +1,6 @@
-# Warpdeck 64 Hosting Stack
+# RetroArena Hosting Stack
 
-Terraform stack for production hosting of `n64.paulashbourne.ca` (plus optional additional aliases like `retroarena.live`):
+Terraform stack for production hosting of `retroarena.live` (plus optional legacy aliases like `n64.paulashbourne.ca`):
 
 - CloudFront + private S3 static frontend
 - EC2 `t4g.nano` multiplayer coordinator
@@ -17,7 +17,7 @@ Domain transfer friendly mode:
 ## Prerequisites
 
 - Existing Route53 hosted zone for the primary app domain root (for example `paulashbourne.ca`)
-- Existing Route53 hosted zones for any entries in `additional_custom_domains` (for example `retroarena.live`)
+- Existing Route53 hosted zones for any entries in `additional_custom_domains` (for example `paulashbourne.ca` for `n64.paulashbourne.ca`)
 - AWS credentials with permissions for Route53, ACM, CloudFront, EC2, IAM, S3, and CloudWatch
 - Two globally unique S3 bucket names (frontend + backend artifacts)
 - Tailscale account (and optionally an auth key for unattended bootstrap)
@@ -25,15 +25,15 @@ Domain transfer friendly mode:
 ## Usage
 
 ```bash
-cd /Users/paul/git/paulashbourne/infra/services/n64
+cd /Users/paul/git/paulashbourne/infra/services/retroarena
 
 cat > terraform.tfvars <<TFVARS
 aws_region           = "us-east-1"
 enable_custom_domain = false
-domain_name          = "n64.paulashbourne.ca"
-root_domain          = "paulashbourne.ca"
+domain_name          = "retroarena.live"
+root_domain          = "retroarena.live"
 additional_custom_domains = {
-  "retroarena.live" = "retroarena.live"
+  "n64.paulashbourne.ca" = "paulashbourne.ca"
 }
 frontend_bucket_name = "<globally-unique-frontend-bucket>"
 artifact_bucket_name = "<globally-unique-artifact-bucket>"
@@ -80,6 +80,7 @@ Use those outputs with deployment scripts in:
 - With `enable_custom_domain = false`, use the `site_domain_name` output (CloudFront domain).
 - With `enable_custom_domain = true`, the stack configures ACM + CloudFront aliases for `domain_name` and any `additional_custom_domains`.
 - The stack creates Route53 alias `A`/`AAAA` records for `domain_name` and for each additional domain in `additional_custom_domains`.
+- Additional alias domains are redirected at CloudFront to the primary `domain_name` host (for example `n64.paulashbourne.ca` -> `retroarena.live`).
 - The EC2 coordinator only accepts inbound traffic from CloudFront origin-facing IP ranges.
 - Tailscale is installed/configured by user-data when `tailscale_enabled = true`.
 - Exit-node advertisement is enabled when `tailscale_advertise_exit_node = true`.

@@ -7,13 +7,13 @@ variable "aws_region" {
 variable "root_domain" {
   description = "Route53 hosted zone root domain (used when enable_custom_domain=true)."
   type        = string
-  default     = "paulashbourne.com"
+  default     = "retroarena.live"
 }
 
 variable "domain_name" {
   description = "Public application domain served by CloudFront when enable_custom_domain=true."
   type        = string
-  default     = "n64.paulashbourne.com"
+  default     = "retroarena.live"
 }
 
 variable "enable_custom_domain" {
@@ -23,7 +23,7 @@ variable "enable_custom_domain" {
 }
 
 variable "additional_custom_domains" {
-  description = "Optional map of additional domain aliases to Route53 root zones when enable_custom_domain=true (for example, { \"retroarena.live\" = \"retroarena.live\" })."
+  description = "Optional map of additional domain aliases to Route53 root zones when enable_custom_domain=true (for example, { \"legacy.paulashbourne.ca\" = \"paulashbourne.ca\" })."
   type        = map(string)
   default     = {}
 }
@@ -96,7 +96,7 @@ variable "coordinator_port" {
 variable "retroarena_public_web_origin" {
   description = "Public web origin used by coordinator-generated links (for example TV QR sign-in verification URL)."
   type        = string
-  default     = "https://n64.paulashbourne.ca"
+  default     = "https://retroarena.live"
 }
 
 variable "cloudwatch_log_retention_days" {

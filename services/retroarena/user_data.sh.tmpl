@@ -63,7 +63,7 @@ server {
 }
 NGINX
 
-  cat > /etc/paulnode/tenants-enabled/10-n64.conf <<'NGINX'
+  cat > /etc/paulnode/tenants-enabled/10-retroarena.conf <<'NGINX'
 location /api/ {
   proxy_http_version 1.1;
   proxy_set_header Host $host;
@@ -132,11 +132,11 @@ SCRIPT
   chmod +x /usr/local/bin/paulnode-register-route
 fi
 
-install -d -m 0755 /opt/n64-coordinator/server
-install -d -m 0755 /etc/n64-coordinator
-install -d -m 0755 /var/log/n64-coordinator
+install -d -m 0755 /opt/retroarena-coordinator/server
+install -d -m 0755 /etc/retroarena-coordinator
+install -d -m 0755 /var/log/retroarena-coordinator
 
-cat > /opt/n64-coordinator/server/multiplayerServer.mjs <<'JS'
+cat > /opt/retroarena-coordinator/server/multiplayerServer.mjs <<'JS'
 import { createServer } from 'node:http';
 
 const host = process.env.MULTIPLAYER_HOST ?? '0.0.0.0';
@@ -145,7 +145,7 @@ const port = Number(process.env.MULTIPLAYER_PORT ?? 8787);
 const server = createServer((req, res) => {
   if (req.url === '/health') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ ok: true, service: 'n64-coordinator-bootstrap' }));
+    res.end(JSON.stringify({ ok: true, service: 'retroarena-coordinator-bootstrap' }));
     return;
   }
 
@@ -160,7 +160,7 @@ server.listen(port, host, () => {
 });
 JS
 
-cat > /etc/n64-coordinator/env <<ENV
+cat > /etc/retroarena-coordinator/env <<ENV
 MULTIPLAYER_HOST=0.0.0.0
 MULTIPLAYER_PORT=${coordinator_port}
 AWS_REGION=${aws_region}
@@ -171,9 +171,9 @@ BASIC_AUTH_EDGE_COOKIE_MAX_AGE_SECONDS=31536000
 RETROARENA_PUBLIC_WEB_ORIGIN=${retroarena_public_web_origin}
 ENV
 
-cat > /etc/systemd/system/n64-coordinator.service <<'SERVICE'
+cat > /etc/systemd/system/retroarena-coordinator.service <<'SERVICE'
 [Unit]
-Description=Warpdeck 64 Multiplayer Coordinator
+Description=RetroArena Multiplayer Coordinator
 After=network-online.target
 Wants=network-online.target
 
@@ -181,29 +181,32 @@ Wants=network-online.target
 Type=simple
 User=ec2-user
 Group=ec2-user
-EnvironmentFile=/etc/n64-coordinator/env
-WorkingDirectory=/opt/n64-coordinator
-ExecStart=/usr/bin/node /opt/n64-coordinator/server/multiplayerServer.mjs
+EnvironmentFile=/etc/retroarena-coordinator/env
+WorkingDirectory=/opt/retroarena-coordinator
+ExecStart=/usr/bin/node /opt/retroarena-coordinator/server/multiplayerServer.mjs
 Restart=always
 RestartSec=2
-StandardOutput=append:/var/log/n64-coordinator/coordinator.log
-StandardError=append:/var/log/n64-coordinator/coordinator.log
+StandardOutput=append:/var/log/retroarena-coordinator/coordinator.log
+StandardError=append:/var/log/retroarena-coordinator/coordinator.log
 
 [Install]
 WantedBy=multi-user.target
 SERVICE
+
+# Backward compatibility for existing deploy tooling still referencing n64-coordinator.
+ln -sf /etc/systemd/system/retroarena-coordinator.service /etc/systemd/system/n64-coordinator.service
 
 if [[ "${shared_proxy_enabled}" == "true" ]]; then
   nginx -t
   systemctl enable --now nginx
 fi
 
-cat > /usr/local/bin/deploy-n64-coordinator <<'SCRIPT'
+cat > /usr/local/bin/deploy-retroarena-coordinator <<'SCRIPT'
 #!/bin/bash
 set -euo pipefail
 
 if [[ $# -ne 1 ]]; then
-  echo "Usage: deploy-n64-coordinator s3://bucket/key.tar.gz" >&2
+  echo "Usage: deploy-retroarena-coordinator s3://bucket/key.tar.gz" >&2
   exit 1
 fi
 
@@ -218,14 +221,22 @@ trap cleanup EXIT
 
 aws s3 cp "$${artifact_uri}" "$${archive_path}"
 
-rm -rf /opt/n64-coordinator
-install -d -m 0755 /opt/n64-coordinator
+rm -rf /opt/retroarena-coordinator
+install -d -m 0755 /opt/retroarena-coordinator
 
-tar -xzf "$${archive_path}" -C /opt/n64-coordinator
-chown -R ec2-user:ec2-user /opt/n64-coordinator
+tar -xzf "$${archive_path}" -C /opt/retroarena-coordinator
+chown -R ec2-user:ec2-user /opt/retroarena-coordinator
 
 systemctl daemon-reload
-systemctl restart n64-coordinator
+systemctl restart retroarena-coordinator
+SCRIPT
+chmod +x /usr/local/bin/deploy-retroarena-coordinator
+
+cat > /usr/local/bin/deploy-n64-coordinator <<'SCRIPT'
+#!/bin/bash
+set -euo pipefail
+
+exec /usr/local/bin/deploy-retroarena-coordinator "$@"
 SCRIPT
 chmod +x /usr/local/bin/deploy-n64-coordinator
 
@@ -236,7 +247,7 @@ cat > /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json <<CWAGEN
       "files": {
         "collect_list": [
           {
-            "file_path": "/var/log/n64-coordinator/coordinator.log",
+            "file_path": "/var/log/retroarena-coordinator/coordinator.log",
             "log_group_name": "${coordinator_log_group_name}",
             "log_stream_name": "{instance_id}/coordinator",
             "timezone": "UTC"
@@ -248,7 +259,7 @@ cat > /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json <<CWAGEN
 }
 CWAGENT
 
-chown -R ec2-user:ec2-user /opt/n64-coordinator /var/log/n64-coordinator
+chown -R ec2-user:ec2-user /opt/retroarena-coordinator /var/log/retroarena-coordinator
 
 /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl -a stop || true
 /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl \
@@ -258,4 +269,4 @@ chown -R ec2-user:ec2-user /opt/n64-coordinator /var/log/n64-coordinator
   -s
 
 systemctl daemon-reload
-systemctl enable --now n64-coordinator
+systemctl enable --now retroarena-coordinator

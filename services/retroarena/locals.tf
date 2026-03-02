@@ -1,7 +1,7 @@
 locals {
-  service_name            = "warpdeck-n64"
+  service_name            = "retroarena"
   basic_auth_active       = var.basic_auth_enabled && trimspace(var.basic_auth_password) != ""
-  basic_auth_cookie_name  = "wd64_auth"
+  basic_auth_cookie_name  = "retroarena_auth"
   basic_auth_cookie_token = local.basic_auth_active ? sha256("${local.service_name}:${var.basic_auth_password}") : ""
   normalized_root_domain  = trimsuffix(trimspace(var.root_domain), ".")
   primary_domain_name     = trimsuffix(trimspace(var.domain_name), ".")
@@ -18,7 +18,7 @@ locals {
     if zone_name != local.normalized_root_domain
   ])
 
-  site_aliases = var.enable_custom_domain ? concat([local.primary_domain_name], local.additional_domain_names) : []
+  site_aliases = var.enable_custom_domain ? [local.primary_domain_name] : []
 
   domain_zone_by_domain_name = merge(
     { (local.primary_domain_name) = local.normalized_root_domain },

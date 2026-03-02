@@ -1,5 +1,5 @@
 output "site_domain_name" {
-  description = "Primary HTTPS domain currently serving Warpdeck64"
+  description = "Primary HTTPS domain currently serving RetroArena"
   value       = var.enable_custom_domain ? var.domain_name : aws_cloudfront_distribution.site.domain_name
 }
 

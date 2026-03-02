@@ -7,7 +7,7 @@ Route53 DNS bootstrap for:
 
 Service stacks:
 
-- `services/n64` for Warpdeck 64 app hosting (`n64.paulashbourne.ca` with optional additional aliases)
+- `services/retroarena` for RetroArena app hosting (`retroarena.live` with optional legacy aliases like `n64.paulashbourne.ca`)
 - SES sender-domain DNS for Portfolio Pulse email notifications (`portfoliopulse.paulashbourne.com`)
 
 ## What this creates
@@ -47,13 +47,13 @@ dig @<ROUTE53_NS> paulashbourne.ca A +short
 3. Wait for NS propagation.
 4. Re-run dig checks without `@<ROUTE53_NS>` to confirm public resolver answers.
 
-## Warpdeck 64 stack
+## RetroArena stack
 
 Deploy the app hosting stack from:
 
 ```bash
-cd /Users/paul/git/paulashbourne/infra/services/n64
+cd /Users/paul/git/paulashbourne/infra/services/retroarena
 ```
 
-See `/Users/paul/git/paulashbourne/infra/services/n64/README.md` for full variables, plan/apply steps, and post-apply outputs.
+See `/Users/paul/git/paulashbourne/infra/services/retroarena/README.md` for full variables, plan/apply steps, and post-apply outputs.
 Use that stack for custom app domains such as `retroarena.live`.
