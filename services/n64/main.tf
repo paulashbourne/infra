@@ -167,6 +167,39 @@ data "aws_iam_policy_document" "coordinator_runtime" {
 
     resources = [aws_s3_bucket.artifact.arn]
   }
+
+  dynamic "statement" {
+    for_each = local.coordinator_s3_enabled ? [1] : []
+
+    content {
+      sid = "AllowCoordinatorBlobBucketList"
+
+      actions = [
+        "s3:ListBucket",
+      ]
+
+      resources = [local.coordinator_s3_bucket_arn]
+    }
+  }
+
+  dynamic "statement" {
+    for_each = local.coordinator_s3_enabled ? [1] : []
+
+    content {
+      sid = "AllowCoordinatorBlobObjectAccess"
+
+      actions = [
+        "s3:AbortMultipartUpload",
+        "s3:DeleteObject",
+        "s3:GetObject",
+        "s3:GetObjectVersion",
+        "s3:ListMultipartUploadParts",
+        "s3:PutObject",
+      ]
+
+      resources = [local.coordinator_s3_object_arn]
+    }
+  }
 }
 
 resource "aws_iam_role_policy" "coordinator_runtime" {
@@ -241,18 +274,29 @@ resource "aws_instance" "coordinator" {
   iam_instance_profile = aws_iam_instance_profile.coordinator.name
 
   user_data = templatefile("${path.module}/user_data.sh.tmpl", {
-    aws_region                    = var.aws_region
-    server_hostname               = var.server_hostname
-    tailscale_enabled             = var.tailscale_enabled
-    tailscale_advertise_exit_node = var.tailscale_advertise_exit_node
-    tailscale_auth_key            = var.tailscale_auth_key
-    shared_proxy_enabled          = var.shared_proxy_enabled
-    shared_proxy_port             = var.shared_proxy_port
-    coordinator_port              = var.coordinator_port
-    coordinator_log_group_name    = aws_cloudwatch_log_group.coordinator.name
-    artifact_bucket_name          = var.artifact_bucket_name
-    basic_auth_cookie_name        = local.basic_auth_cookie_name
-    basic_auth_cookie_token       = local.basic_auth_cookie_token
+    aws_region                       = var.aws_region
+    server_hostname                  = var.server_hostname
+    tailscale_enabled                = var.tailscale_enabled
+    tailscale_advertise_exit_node    = var.tailscale_advertise_exit_node
+    tailscale_auth_key               = var.tailscale_auth_key
+    shared_proxy_enabled             = var.shared_proxy_enabled
+    shared_proxy_port                = var.shared_proxy_port
+    coordinator_port                 = var.coordinator_port
+    coordinator_log_group_name       = aws_cloudwatch_log_group.coordinator.name
+    artifact_bucket_name             = var.artifact_bucket_name
+    basic_auth_cookie_name           = local.basic_auth_cookie_name
+    basic_auth_cookie_token          = local.basic_auth_cookie_token
+    coordinator_runtime_root         = var.coordinator_runtime_root
+    coordinator_storage_backend      = var.coordinator_storage_backend
+    coordinator_database_url_env     = jsonencode(var.coordinator_database_url)
+    coordinator_s3_bucket_name       = var.coordinator_s3_bucket_name
+    coordinator_s3_region            = local.coordinator_s3_region
+    coordinator_s3_endpoint_env      = jsonencode(var.coordinator_s3_endpoint)
+    coordinator_s3_key_prefix        = local.coordinator_s3_prefix
+    coordinator_s3_force_path_style  = var.coordinator_s3_force_path_style
+    coordinator_s3_avatar_prefix     = trim(trimspace(var.coordinator_s3_avatar_prefix), "/")
+    coordinator_s3_rom_prefix        = trim(trimspace(var.coordinator_s3_rom_prefix), "/")
+    coordinator_s3_cloud_save_prefix = trim(trimspace(var.coordinator_s3_cloud_save_prefix), "/")
   })
 
   lifecycle {

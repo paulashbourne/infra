@@ -8,6 +8,8 @@ Terraform stack for production hosting of `n64.paulashbourne.com`:
 - Shared nginx reverse proxy for hosting additional low-traffic apps on the same node
 - ACM certificate (us-east-1) + Route53 records
 - CloudWatch log group + EC2 alarms
+- Persistent coordinator runtime directory at `/var/lib/n64-coordinator/runtime`
+- Placeholder env wiring for the planned Postgres + S3 durability rollout
 
 Domain transfer friendly mode:
 
@@ -20,6 +22,7 @@ Domain transfer friendly mode:
 - AWS credentials with permissions for Route53, ACM, CloudFront, EC2, IAM, S3, and CloudWatch
 - Two globally unique S3 bucket names (frontend + backend artifacts)
 - Tailscale account (and optionally an auth key for unattended bootstrap)
+- Optional third S3 bucket if you want to pre-wire durable coordinator blob storage
 
 ## Usage
 
@@ -45,6 +48,21 @@ basic_auth_username  = "" # deprecated (legacy basic-auth field), keep empty
 basic_auth_password  = "<strong-password>"
 # Optional: pin subnet if your chosen instance type is not available in one AZ
 # coordinator_subnet_id = "subnet-xxxxxxxx"
+
+# Runtime durability defaults
+coordinator_runtime_root    = "/var/lib/n64-coordinator"
+coordinator_storage_backend = "filesystem"
+
+# Future durable storage rollout placeholders (safe to leave empty until server support lands)
+# coordinator_database_url        = "postgres://user:password@host:5432/warpdeck"
+# coordinator_s3_bucket_name      = "<globally-unique-coordinator-blob-bucket>"
+# coordinator_s3_region           = "us-east-1" # defaults to aws_region when omitted
+# coordinator_s3_endpoint         = ""          # optional S3-compatible endpoint
+# coordinator_s3_key_prefix       = "coordinator"
+# coordinator_s3_force_path_style = false
+# coordinator_s3_avatar_prefix    = "avatars"
+# coordinator_s3_rom_prefix       = "roms"
+# coordinator_s3_cloud_save_prefix = "cloud-saves"
 TFVARS
 
 terraform init
@@ -85,3 +103,12 @@ Use those outputs with deployment scripts in:
 - Unauthenticated users see a custom password page (no browser basic-auth modal).
 - A successful login sets a long-lived secure cookie so the same device/browser does not prompt repeatedly.
 - Shared URLs can include `?password=<value>` once to auto-unlock and then redirect to a clean URL.
+
+## Persistence Notes
+
+- Backend deploys no longer treat `/opt/n64-coordinator/.runtime` as disposable release state.
+- The node now reserves `coordinator_runtime_root/runtime` (default `/var/lib/n64-coordinator/runtime`) for file-backed coordinator data and recreates `/opt/n64-coordinator/.runtime` as a symlink during bootstrap/deploy.
+- When the legacy `.runtime` directory already exists inside `/opt/n64-coordinator`, the deploy helper copies it into the persistent runtime root before replacing the release bundle.
+- The stack writes the existing file-backed env vars (`AUTH_USER_STORE_PATH`, `AUTH_SESSION_STORE_PATH`, `AUTH_PREFERENCE_STORE_PATH`, `MULTIPLAYER_PROFILE_STORE_PATH`, `CLOUD_SAVE_STORE_PATH`, `AUTH_AVATAR_DIR`) against that persistent runtime root so current coordinator builds stop losing data on artifact deploys.
+- `coordinator_storage_backend`, `coordinator_database_url`, and the `coordinator_s3_*` variables are placeholders for the upcoming Postgres + S3 migration. Leaving them empty keeps the current filesystem-backed coordinator behavior.
+- If `coordinator_s3_bucket_name` is set, the coordinator EC2 role is pre-authorized for object read/write/delete access within the configured bucket prefix.

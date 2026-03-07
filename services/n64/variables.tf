@@ -87,6 +87,78 @@ variable "coordinator_port" {
   default     = 8787
 }
 
+variable "coordinator_runtime_root" {
+  description = "Persistent filesystem root for coordinator runtime data on the EC2 node."
+  type        = string
+  default     = "/var/lib/n64-coordinator"
+}
+
+variable "coordinator_storage_backend" {
+  description = "Coordinator persistence backend. Keep `filesystem` until the server is migrated; `postgres-s3` is reserved for the durable storage rollout."
+  type        = string
+  default     = "filesystem"
+
+  validation {
+    condition     = contains(["filesystem", "postgres-s3"], var.coordinator_storage_backend)
+    error_message = "coordinator_storage_backend must be `filesystem` or `postgres-s3`."
+  }
+}
+
+variable "coordinator_database_url" {
+  description = "Optional Postgres connection string passed to the coordinator environment. Leave empty until server-side Postgres support is enabled."
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "coordinator_s3_bucket_name" {
+  description = "Optional S3 bucket for durable coordinator blobs (avatars, ROMs, cloud saves). Leave empty until server-side S3 support is enabled."
+  type        = string
+  default     = ""
+}
+
+variable "coordinator_s3_region" {
+  description = "AWS region for the coordinator blob bucket. Defaults to aws_region when empty."
+  type        = string
+  default     = ""
+}
+
+variable "coordinator_s3_endpoint" {
+  description = "Optional custom S3-compatible endpoint for coordinator blob storage."
+  type        = string
+  default     = ""
+}
+
+variable "coordinator_s3_key_prefix" {
+  description = "Bucket prefix reserved for coordinator-managed durable blobs."
+  type        = string
+  default     = "coordinator"
+}
+
+variable "coordinator_s3_force_path_style" {
+  description = "Force path-style S3 requests for coordinator blob storage."
+  type        = bool
+  default     = false
+}
+
+variable "coordinator_s3_avatar_prefix" {
+  description = "Object-key prefix for avatar blobs within the coordinator bucket namespace."
+  type        = string
+  default     = "avatars"
+}
+
+variable "coordinator_s3_rom_prefix" {
+  description = "Object-key prefix for admin-uploaded cloud ROMs within the coordinator bucket namespace."
+  type        = string
+  default     = "roms"
+}
+
+variable "coordinator_s3_cloud_save_prefix" {
+  description = "Object-key prefix for cloud save blobs within the coordinator bucket namespace."
+  type        = string
+  default     = "cloud-saves"
+}
+
 variable "cloudwatch_log_retention_days" {
   description = "Retention window for coordinator CloudWatch logs."
   type        = number
