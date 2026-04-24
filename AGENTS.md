@@ -8,6 +8,12 @@ The RetroArena stack can also manage additional custom domains (currently `retro
 - `main.tf`, `variables.tf`, `versions.tf`: root DNS stack (Route53 hosted zones + records for base domains).
 - `services/retroarena/`: RetroArena hosting stack (CloudFront, S3, EC2 coordinator, optional custom domain wiring).
 
+## Portfolio Pulse Ingress Notes
+- Root Terraform owns DNS for `portfoliopulse.paulashbourne.com`, pointing it at `paulnode-uswest2.tail9cc783.ts.net`.
+- The HTTPS reverse proxy itself is live nginx config on `paulnode-uswest2`, not currently codified in this repo.
+- Current upstream target: `http://paulbase.tail9cc783.ts.net:8788`.
+- Live nginx config path: `/etc/nginx/conf.d/paulnode-tailnet-ingress.conf`.
+
 ## Terraform Conventions
 - Terraform is run with local state in this repo.
 - Use `terraform fmt`, `terraform validate`, and `terraform plan` before apply.

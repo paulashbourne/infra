@@ -16,6 +16,12 @@ Service stacks:
 - DNS records mirrored from current production DNS to avoid downtime during registrar transfer
 - SES domain identity DNS records for `portfoliopulse.paulashbourne.com` (verification + DKIM)
 
+## Portfolio Pulse ingress
+
+Terraform points `portfoliopulse.paulashbourne.com` at the tailnet ingress node `paulnode-uswest2.tail9cc783.ts.net`.
+The actual HTTPS reverse proxy is live nginx config on that node at `/etc/nginx/conf.d/paulnode-tailnet-ingress.conf`.
+It currently forwards to the dashboard on `http://paulbase.tail9cc783.ts.net:8788`.
+
 ## Usage
 
 ```bash
