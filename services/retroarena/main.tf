@@ -9,6 +9,16 @@ data "aws_route53_zone" "additional_roots" {
   private_zone = false
 }
 
+data "aws_route53_zone" "paulashbourne_certbot" {
+  for_each = toset([
+    "paulashbourne.com",
+    "paulashbourne.ca",
+  ])
+
+  name         = "${each.value}."
+  private_zone = false
+}
+
 data "aws_vpc" "default" {
   default = true
 }
@@ -172,6 +182,29 @@ data "aws_iam_policy_document" "coordinator_runtime" {
     ]
 
     resources = [aws_s3_bucket.artifact.arn]
+  }
+
+  statement {
+    sid = "AllowCertbotListZonesAndPollChanges"
+
+    actions = [
+      "route53:GetChange",
+      "route53:ListHostedZones",
+    ]
+
+    resources = ["*"]
+  }
+
+  statement {
+    sid = "AllowCertbotWildcardTxtChanges"
+
+    actions = [
+      "route53:ChangeResourceRecordSets",
+    ]
+
+    resources = [
+      for zone in data.aws_route53_zone.paulashbourne_certbot : zone.arn
+    ]
   }
 }
 
