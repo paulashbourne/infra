@@ -21,7 +21,7 @@ Service stacks:
 Terraform points `portfoliopulse.paulashbourne.com` at the tailnet ingress node `paulnode-uswest2.tail9cc783.ts.net`.
 The actual HTTPS reverse proxy is live nginx config on that node at `/etc/nginx/conf.d/paulnode-tailnet-ingress.conf`.
 It currently forwards to the dashboard on `http://paulbase.tail9cc783.ts.net:8788`.
-The generated nginx file is rebuilt by `refresh-policy-routes@ens5.timer` from `/etc/paulnode/tailnet-ingress/services.json`, so update that JSON source before reloading nginx when changing the Portfolio Pulse upstream.
+The durable ingress source is SSM document `paulnode-tailnet-ingress-reconcile`, run hourly by association `paulnode-tailnet-ingress-reconcile-hourly`. That document rewrites `/etc/paulnode/tailnet-ingress/services.json` and regenerates nginx, so update the SSM document when changing the Portfolio Pulse upstream.
 TLS for the ingress is a certbot wildcard certificate on `paulnode-uswest2`; the coordinator instance role includes Route53 DNS-01 permissions for the `paulashbourne.com` and `paulashbourne.ca` zones so renewal can update challenge TXT records.
 
 ## Usage

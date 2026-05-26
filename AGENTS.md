@@ -13,8 +13,8 @@ The RetroArena stack can also manage additional custom domains (currently `retro
 - The HTTPS reverse proxy itself is live nginx config on `paulnode-uswest2`, not currently codified in this repo.
 - Current upstream target: `http://paulbase.tail9cc783.ts.net:8788`.
 - Live nginx config path: `/etc/nginx/conf.d/paulnode-tailnet-ingress.conf`.
-- Live ingress source-of-truth file: `/etc/paulnode/tailnet-ingress/services.json`.
-- `refresh-policy-routes@ens5.timer` regenerates the nginx config from that JSON source, so update `services.json` before reloading nginx; editing only the generated nginx file will be overwritten.
+- Durable ingress source: SSM document `paulnode-tailnet-ingress-reconcile`, run hourly by association `paulnode-tailnet-ingress-reconcile-hourly` (`2e0db787-7935-4c3d-8a4a-e16d5a4c55bf`).
+- That SSM document rewrites `/etc/paulnode/tailnet-ingress/services.json` and regenerates `/etc/nginx/conf.d/paulnode-tailnet-ingress.conf`; editing either file only on the instance will be overwritten.
 - The nginx wildcard certificate is managed by certbot on `paulnode-uswest2` using the `dns-route53` plugin.
 - The `retroarena-coordinator-role` instance role must retain Route53 permissions for the `paulashbourne.com` and `paulashbourne.ca` hosted zones so certbot can create DNS-01 challenge TXT records.
 
