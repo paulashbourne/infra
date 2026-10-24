@@ -93,3 +93,9 @@ Use those outputs with deployment scripts in:
 - Unauthenticated users see a custom password page (no browser basic-auth modal).
 - A successful login sets a long-lived secure cookie so the same device/browser does not prompt repeatedly.
 - Shared URLs can include `?password=<value>` once to auto-unlock and then redirect to a clean URL.
+
+## Managed TURN
+
+`turn.tf` provisions AWS Kinesis Video signaling channels in us-west-2 and us-east-1 solely for their managed TURN service. Room signaling stays with RetroArena. CloudFormation resources are wrapped by Terraform because provider v5 does not expose signaling channels directly. SSM `/retroarena/turn/channels` stores the regional ARNs; the coordinator role can read that parameter and issue ICE credentials for those channels only.
+
+Production `server/turnService.mjs` reads this configuration. Its authenticated endpoint returns five-minute credentials, caches by login session, tolerates one unavailable region, and never exposes an AWS credential. Relay bandwidth is limited by AWS to 5 Mbps per allocation; the app caps relayed video at 4 Mbps. Fifty concurrent allocations per regional channel is the initial capacity; shard channels before expanding beyond that budget. Clients refresh credentials before new negotiation. No media is stored by these channels.

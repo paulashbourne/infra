@@ -55,3 +55,7 @@ The RetroArena stack can also manage additional custom domains (currently `retro
   - `.terraform/`, `tfplan`, `*.tfstate`, `*.tfstate.*`
 - Keep commits scoped to task intent.
 - Do not include unrelated file changes unless explicitly requested.
+
+## RetroArena TURN
+
+`services/retroarena/turn.tf` owns two regional managed TURN channels (Oregon/Virginia), their CloudFormation wrappers, `/retroarena/turn/channels` SSM configuration and a scoped coordinator IAM policy. Existing web/coordinator resources are unchanged. These channels supply credentials only; do not migrate room signaling to Kinesis. Kinesis limits each allocation to 5 Mbps and each channel to 50 allocations. The application refreshes five-minute credentials and caps relayed video at 4 Mbps. Do not print ICE credentials or put them in Terraform state; only channel ARNs belong in the parameter.
